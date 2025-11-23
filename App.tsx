@@ -95,8 +95,8 @@ const SwitchWordCard: React.FC<SwitchWordCardProps> = ({
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex-1 space-y-4">
             <div className="flex items-center gap-2 text-brand-yellow text-xs font-bold tracking-widest uppercase">
-              <Sun size={14} />
-              <span>Switch Word of the Day</span>
+              <Sparkles size={14} />
+              <span>Cosmic Message for You</span>
             </div>
             <div>
               <h3 className="text-3xl md:text-5xl font-black tracking-tight text-white leading-tight mb-2">
@@ -180,29 +180,46 @@ const App: React.FC = () => {
   const [categories] = useState<CategoryStructure[]>(() => parseData(RAW_DATA_STRING));
   
   const [favorites, setFavorites] = useState<string[]>(() => {
-    const saved = localStorage.getItem('lumina_favorites');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('lumina_favorites');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
   });
 
-  // UI State - Initialize from localStorage
+  // UI State - Initialize from localStorage to restore session
   const [view, setView] = useState<ViewState>(() => {
-    const saved = localStorage.getItem('lumina_view');
-    if (saved === 'home' || saved === 'favorites' || saved === 'assistant') {
-      return saved as ViewState;
-    }
+    try {
+      const saved = localStorage.getItem('lumina_view');
+      if (saved === 'home' || saved === 'favorites' || saved === 'assistant') {
+        return saved as ViewState;
+      }
+    } catch (e) {}
     return 'home';
   });
 
   const [activeCategory, setActiveCategory] = useState<CategoryStructure | null>(() => {
-    const savedName = localStorage.getItem('lumina_active_category_name');
-    if (savedName) {
-      return categories.find(c => c.name === savedName) || null;
-    }
+    try {
+      const savedName = localStorage.getItem('lumina_active_category_name');
+      if (savedName) {
+        // We can access 'categories' here because it's defined in the scope above
+        return categories.find(c => c.name === savedName) || null;
+      }
+    } catch (e) {}
     return null;
   });
 
   const [activeSubcategory, setActiveSubcategory] = useState<string | null>(() => {
-    return localStorage.getItem('lumina_active_subcategory');
+    try {
+      // Only restore subcategory if category is also being restored
+      const savedCatName = localStorage.getItem('lumina_active_category_name');
+      if (!savedCatName) return null;
+      
+      return localStorage.getItem('lumina_active_subcategory');
+    } catch (e) {
+      return null;
+    }
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -218,15 +235,35 @@ const App: React.FC = () => {
   
   // Persist expanded categories state
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(() => {
+    const initialSet = new Set<string>();
     try {
       const saved = localStorage.getItem('lumina_expanded_categories');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch (e) {
-      return new Set();
+      if (saved) {
+        JSON.parse(saved).forEach((cat: string) => initialSet.add(cat));
+      }
+    } catch (e) {}
+
+    // UX Improvement: Always expand the active category if one is restored
+    const savedActiveCat = localStorage.getItem('lumina_active_category_name');
+    if (savedActiveCat) {
+      initialSet.add(savedActiveCat);
     }
+    
+    return initialSet;
   });
 
-  // Persistence Effects
+  // Helper to get random word
+  const getRandomSwitchWord = () => {
+    const allItems = categories.flatMap(c => c.subcategories.flatMap(s => s.items));
+    if (allItems.length === 0) return null;
+    const randomIndex = Math.floor(Math.random() * allItems.length);
+    return allItems[randomIndex];
+  };
+
+  // Featured Word State
+  const [featuredWord, setFeaturedWord] = useState<SwitchWordItem | null>(() => getRandomSwitchWord());
+
+  // --- Persistence Effects ---
   useEffect(() => {
     localStorage.setItem('lumina_favorites', JSON.stringify(favorites));
   }, [favorites]);
@@ -254,30 +291,6 @@ const App: React.FC = () => {
       localStorage.removeItem('lumina_active_subcategory');
     }
   }, [activeSubcategory]);
-
-  // Logic: Switch Word of the Day
-  const dailyWord = useMemo(() => {
-    if (categories.length === 0) return null;
-    
-    // Flatten all items
-    const allItems = categories.flatMap(c => c.subcategories.flatMap(s => s.items));
-    if (allItems.length === 0) return null;
-
-    // Create a seed based on the current date (YYYY-MM-DD)
-    const today = new Date();
-    const seedString = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
-    
-    // Simple string hash
-    let hash = 0;
-    for (let i = 0; i < seedString.length; i++) {
-        hash = ((hash << 5) - hash) + seedString.charCodeAt(i);
-        hash |= 0;
-    }
-    
-    // Map hash to an index
-    const index = Math.abs(hash) % allItems.length;
-    return allItems[index];
-  }, [categories]);
 
   // Helper: Show Toast
   const showToast = (message: string) => {
@@ -367,6 +380,9 @@ const App: React.FC = () => {
     setChantItem(null);
     setSortBy('goal');
     
+    // Refresh the featured word
+    setFeaturedWord(getRandomSwitchWord());
+
     // Reset scroll position to top instantly to prevent lag
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0, behavior: 'auto' });
@@ -421,13 +437,13 @@ const App: React.FC = () => {
            </header>
 
            {/* Switch Word of the Day */}
-           {dailyWord && (
+           {featuredWord && (
              <div className="mb-10 animate-in slide-in-from-top-2 duration-500">
                <SwitchWordCard 
-                 item={dailyWord}
-                 isFavorite={favorites.includes(dailyWord.id)}
-                 onToggleFavorite={() => toggleFavorite(dailyWord.id)}
-                 onChant={() => handleChant(dailyWord)}
+                 item={featuredWord}
+                 isFavorite={favorites.includes(featuredWord.id)}
+                 onToggleFavorite={() => toggleFavorite(featuredWord.id)}
+                 onChant={() => handleChant(featuredWord)}
                  variant="featured"
                />
              </div>

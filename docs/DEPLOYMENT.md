@@ -39,21 +39,14 @@ This defines your dependencies and build commands.
 ```
 
 ### 2. Create `vite.config.ts`
-This configures the build tool and ensures your API Key works correctly.
+This configures the build tool.
 
 ```typescript
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '');
-  return {
-    plugins: [react()],
-    define: {
-      // Polyfill process.env for the existing code structure
-      'process.env.API_KEY': JSON.stringify(env.API_KEY)
-    }
-  };
+export default defineConfig({
+  plugins: [react()],
 });
 ```
 
@@ -170,8 +163,8 @@ This is the easiest and fastest method.
 
 4.  **Environment Variables (Crucial)**:
     *   Expand the **"Environment Variables"** section.
-    *   Key: `API_KEY`
-    *   Value: `[Your actual Google Gemini API Key]`
+    *   **KEY**: `VITE_API_KEY`  <-- **IMPORTANT: Must start with VITE_**
+    *   **VALUE**: `[Your actual Google Gemini API Key]`
     *   Click **Add**.
 
 5.  **Deploy**:
@@ -194,7 +187,9 @@ COPY package.json package-lock.json* ./
 # Install dependencies
 RUN npm install
 COPY . .
-# Build the app
+# Build the app with build args for env vars
+ARG VITE_API_KEY
+ENV VITE_API_KEY=$VITE_API_KEY
 RUN npm run build
 
 # Stage 2: Serve with Nginx
@@ -232,7 +227,7 @@ You need the Google Cloud CLI (`gcloud`) installed.
 
 2.  **Build the Container**:
     ```bash
-    gcloud builds submit --tag gcr.io/[YOUR_PROJECT_ID]/switch-words-app
+    gcloud builds submit --tag gcr.io/[YOUR_PROJECT_ID]/switch-words-app --substitutions=_VITE_API_KEY=[YOUR_KEY]
     ```
 
 3.  **Deploy to Cloud Run**:
@@ -241,9 +236,5 @@ You need the Google Cloud CLI (`gcloud`) installed.
       --image gcr.io/[YOUR_PROJECT_ID]/switch-words-app \
       --platform managed \
       --region us-central1 \
-      --allow-unauthenticated \
-      --set-env-vars API_KEY=[YOUR_GEMINI_API_KEY]
+      --allow-unauthenticated
     ```
-
-4.  **Result**:
-    The console will output a `Service URL` (e.g., `https://switch-words-service-xyz.a.run.app`).

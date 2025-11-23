@@ -1,11 +1,40 @@
 import { GoogleGenAI } from "@google/genai";
 
-export const generateSwitchWord = async (situation: string): Promise<string> => {
-  if (!process.env.API_KEY) {
-    throw new Error("API Key is missing");
+// Helper to safely get the API key from various environment configurations
+const getApiKey = () => {
+  // 1. Check for Vite environment variable (Standard for Vercel/Vite deployments)
+  // We use try-catch or checks to avoid errors in environments where import.meta might be restricted
+  try {
+    // @ts-ignore - import.meta is valid in ES modules/Vite
+    if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {
+      // @ts-ignore
+      return import.meta.env.VITE_API_KEY;
+    }
+  } catch (e) {
+    // Ignore error if import.meta is not available
+  }
+  
+  // 2. Check for standard Node.js/Process environment variable (Fallback or for backend usage)
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    // Ignore error if process is not defined
   }
 
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  return '';
+};
+
+export const generateSwitchWord = async (situation: string): Promise<string> => {
+  const apiKey = getApiKey();
+
+  if (!apiKey) {
+    console.error("API Key is missing. Ensure VITE_API_KEY is set in your Vercel Environment Variables.");
+    throw new Error("API Key is missing configuration.");
+  }
+
+  const ai = new GoogleGenAI({ apiKey });
 
   const prompt = `
     You are an expert Intuitive Energy Mentor and Master of Metaphysical Switch Words.
